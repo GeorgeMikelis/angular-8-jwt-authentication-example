@@ -1,79 +1,109 @@
-﻿import { Injectable } from '@angular/core';
-import { HttpRequest, HttpResponse, HttpHandler, HttpEvent, HttpInterceptor, HTTP_INTERCEPTORS } from '@angular/common/http';
-import { Observable, of, throwError } from 'rxjs';
-import { delay, mergeMap, materialize, dematerialize } from 'rxjs/operators';
+﻿﻿import { Injectable } from "@angular/core";
+import {
+  HttpRequest,
+  HttpResponse,
+  HttpHandler,
+  HttpEvent,
+  HttpInterceptor,
+  HTTP_INTERCEPTORS,
+} from "@angular/common/http";
+import { Observable, of, throwError } from "rxjs";
+import { delay, mergeMap, materialize, dematerialize } from "rxjs/operators";
 
-import { User } from '@app/_models';
+import { User } from "@app/_models";
+import { AuthenticationService } from "@app/_services";
+import { EncodingTools } from "./encoding-tools";
 
-const users: User[] = [{ id: 1, username: 'test', password: 'test', firstName: 'Test', lastName: 'User' }];
+const users: User[] = [
+  {
+    id: 1,
+    username: "test",
+    password: "test",
+    firstName: "Test",
+    lastName: "User",
+  },
+  {
+    id: 1,
+    username: "panos",
+    password: "test",
+    firstName: "Panos",
+    lastName: "Kolaitis",
+  },
+];
 
 @Injectable()
 export class FakeBackendInterceptor implements HttpInterceptor {
-    intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-        const { url, method, headers, body } = request;
+  constructor(private authenticationService: AuthenticationService) {}
 
-        // wrap in delayed observable to simulate server api call
-        return of(null)
-            .pipe(mergeMap(handleRoute))
-            .pipe(materialize()) // call materialize and dematerialize to ensure delay even if an error is thrown (https://github.com/Reactive-Extensions/RxJS/issues/648)
-            .pipe(delay(500))
-            .pipe(dematerialize());
+  // route functions
 
-        function handleRoute() {
-            switch (true) {
-                case url.endsWith('/users/authenticate') && method === 'POST':
-                    return authenticate();
-                case url.endsWith('/users') && method === 'GET':
-                    return getUsers();
-                default:
-                    // pass through any requests not handled above
-                    return next.handle(request);
-            }    
-        }
+  authenticate(request) {
+    const { username, password } = request.body;
+    const user = users.find(
+      (x) => x.username === username && x.password === password
+    );
+    if (!user) return this.error("Username or password is incorrect");
+    const token = EncodingTools.encode(user);
+    return this.ok({
+      id: user.id,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      token: token,
+    });
+  }
 
-        // route functions
+  getUsers(request) {
+    if (!this.isLoggedIn(request)) return this.unauthorized();
+    return this.ok(users);
+  }
 
-        function authenticate() {
-            const { username, password } = body;
-            const user = users.find(x => x.username === username && x.password === password);
-            if (!user) return error('Username or password is incorrect');
-            return ok({
-                id: user.id,
-                username: user.username,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                token: 'fake-jwt-token'
-            })
-        }
+  // helper functions
+  ok(body?) {
+    return of(new HttpResponse({ status: 200, body }));
+  }
 
-        function getUsers() {
-            if (!isLoggedIn()) return unauthorized();
-            return ok(users);
-        }
+  error(message) {
+    return throwError({ error: { message } });
+  }
 
-        // helper functions
+  unauthorized() {
+    return throwError({ status: 401, error: { message: "Unauthorised" } });
+  }
 
-        function ok(body?) {
-            return of(new HttpResponse({ status: 200, body }))
-        }
+  isLoggedIn(request) {
+    console.log(
+      EncodingTools.encode(this.authenticationService.currentUserValue),
+      request.headers.get("Authorization")
+    );
+    return (
+      request.headers.get("Authorization") ===
+      "Bearer " +
+        EncodingTools.encode(this.authenticationService.currentUserValue)
+    );
+  }
 
-        function error(message) {
-            return throwError({ error: { message } });
-        }
+  intercept(
+    request: HttpRequest<any>,
+    next: HttpHandler
+  ): Observable<HttpEvent<any>> {
+    const { url, method } = request;
 
-        function unauthorized() {
-            return throwError({ status: 401, error: { message: 'Unauthorised' } });
-        }
-
-        function isLoggedIn() {
-            return headers.get('Authorization') === 'Bearer fake-jwt-token';
-        }
+    switch (true) {
+      case url.endsWith("/users/authenticate") && method === "POST":
+        return this.authenticate(request);
+      case url.endsWith("/users") && method === "GET":
+        return this.getUsers(request);
+      default:
+        // pass through any requests not handled above
+        return next.handle(request);
     }
+  }
 }
 
 export let fakeBackendProvider = {
-    // use fake backend in place of Http service for backend-less development
-    provide: HTTP_INTERCEPTORS,
-    useClass: FakeBackendInterceptor,
-    multi: true
+  // use fake backend in place of Http service for backend-less development
+  provide: HTTP_INTERCEPTORS,
+  useClass: FakeBackendInterceptor,
+  multi: true,
 };
