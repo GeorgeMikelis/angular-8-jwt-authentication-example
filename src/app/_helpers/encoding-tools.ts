@@ -6,3 +6,4 @@ export class EncodingTools {
     return JSON.parse(atob(x));
   }
 }
+
