@@ -23,11 +23,11 @@ const users: User[] = [
     lastName: "User",
   },
   {
-    id: 1,
-    username: "panos",
+    id: 2,
+    username: "George.M",
     password: "test",
-    firstName: "Panos",
-    lastName: "Kolaitis",
+    firstName: "George",
+    lastName: "Mikelis",
   },
 ];
 
@@ -56,6 +56,23 @@ export class FakeBackendInterceptor implements HttpInterceptor {
   getUsers(request) {
     if (!this.isLoggedIn(request)) return this.unauthorized();
     return this.ok(users);
+  }
+
+  createUser(request) {
+    const newUser = request.body;
+    let bigestId: number = Math.max.apply(Math, users.map(function(o) { return o.id; }))
+    const newId: number = bigestId + 1;
+    const user = { id: newId, ...newUser };
+    console.log(user);
+    users.push(user);
+    const token = EncodingTools.encode(user);
+    return this.ok({
+      id: user.id,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      token: token,
+    });
   }
 
   // helper functions
@@ -94,6 +111,8 @@ export class FakeBackendInterceptor implements HttpInterceptor {
         return this.authenticate(request);
       case url.endsWith("/users") && method === "GET":
         return this.getUsers(request);
+      case url.endsWith("/users") && method === "POST":
+        return this.createUser(request);
       default:
         // pass through any requests not handled above
         return next.handle(request);

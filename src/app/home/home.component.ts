@@ -1,4 +1,4 @@
-﻿import { Component } from '@angular/core';
+﻿import { AfterViewInit, Component, OnChanges, SimpleChanges } from '@angular/core';
 import { first } from 'rxjs/operators';
 
 import { User } from '@app/_models';
@@ -16,6 +16,7 @@ export class HomeComponent {
         this.userService.getAll().pipe(first()).subscribe(users => {
             this.loading = false;
             this.users = users;
+            console.log(users);
         });
     }
 }

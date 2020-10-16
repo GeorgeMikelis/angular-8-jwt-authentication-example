@@ -30,6 +30,16 @@ export class AuthenticationService {
             }));
     }
 
+    signUp(username: string, firstname: string, lastname: string, password: string) {
+        return this.http.post<any>(`${environment.apiUrl}/users`, { username, firstname, lastname, password })
+            .pipe(map(user => {
+                // store user details and jwt token in local storage to keep user logged in between page refreshes
+                localStorage.setItem('currentUser', JSON.stringify(user));
+                this.currentUserSubject.next(user);
+                return user;
+            }));
+    }
+
     logout() {
         // remove user from local storage to log user out
         localStorage.removeItem('currentUser');
